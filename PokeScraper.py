@@ -6,11 +6,10 @@ class Spinarak(scrapy.Spider):
     name = "Spinarak"
     custom_settings = {'CONCURRENT_REQUESTS_PER_DOMAIN' : 1, 'DUPEFILTER_CLASS' : 'scrapy.dupefilters.BaseDupeFilter'}
     link = 'https://bulbapedia.bulbagarden.net/wiki/Bulbasaur_(Pok%C3%A9mon)'
-    visited = set()
     main_data = []
     types_list = [] # list of tuples
     stats_list = [] # list of dicts
-    abilities_list = [] #list of abilities
+    abilities_list = [[] for x in range(1025)] #list of abilities. has to be initialised to 1025 empty lists because of ability table ordering
     moves_list = []#list of all moves
     first_pass = True
     next_mon_link = ''
@@ -29,7 +28,6 @@ class Spinarak(scrapy.Spider):
         
         if page_content.xpath('./table[1]/tbody/tr[2]/td[3]/table/tbody/tr/td/a/@href').get() or len(self.main_data) == 1024:
             self.next_mon_link = page_content.xpath('./table[1]/tbody/tr[2]/td[3]/table/tbody/tr/td/a/@href').get()
-            print(self.next_mon_link)
             self.parse_main(page_content)
             print(f'parsed: {len(self.main_data)}/1025')
             if self.next_mon_link:
@@ -123,21 +121,24 @@ class Spinarak(scrapy.Spider):
                 else:
                     heading = 'learnset'
                 data[heading] += self.get_moves_from_table(elem, data)
-        data['learnset'] = data['learnset'][:-2]
+        data['learnset'] = ', '.join(set(data['learnset'][:-2].split(', ')))
         self.main_data.append(data)
         return
 
 
     def get_moves_from_table(self, table, data):
         moves_col = 0
-        for i, col in enumerate(table.xpath('./tbody/tr[2]/td/table/tbody/tr/th'), 1):
+        for i, col in enumerate(table.xpath('./tbody/tr[2]/td/table/tbody/tr/*'), 1):
+            if col.xpath('./@colspan'):
+                moves_col += int(col.xpath('./@colspan').get()) - 1 #easy mistake, colspan means it takes up the column it should and colspan-1 columns
             if col.xpath('./a/span/text()').get() == "Move":
-                moves_col = i
+                moves_col += i
                 break
         moves = ''
         for row in table.xpath('./tbody/tr[2]/td//table/tbody/tr')[1:]:
-            if row.xpath(f'./td[{moves_col}]').get():
-                moves += row.xpath(f'./td[{moves_col}]//text()').get() + ', '
+            if row.xpath(f'./*[{moves_col}]').get():
+                if not row.xpath(f'./*[{moves_col}]').get() in moves:
+                    moves += row.xpath(f'./*[{moves_col}]//text()').get() + ', '
         return moves
 
 
@@ -168,11 +169,13 @@ class Spinarak(scrapy.Spider):
             self.stats_list.append(stats)
 
 
-    def get_abilities(self, response):
+    def get_abilities(self, response):#for some unknown reason, mons introduced in later gens are prepended to their evolution line e.g. cleffa prepended to clefairy, clefable, ruining indexing.
         tables = response.xpath('.//div[@id="mw-content-text"]/div[1]/table')
-        for table in tables[:-1]:
+        for table in tables[:-1]:#exclude related articles table
             rows = table.xpath('./tbody/tr/td/table/tbody/tr')
             for row in rows:
+                if row.xpath('./td[1]/text()').get():
+                    num = int(row.xpath('./td[1]/text()').get()) - 1 
                 if row.xpath('./td[1]/text()').get() == row.xpath('./preceding-sibling::tr[1]/td[1]/text()').get():
                     continue
                 abilities = \
@@ -181,7 +184,7 @@ class Spinarak(scrapy.Spider):
                     row.xpath('./td[5]/a/text()').get(),
                     row.xpath('./td[6]/a/text()').get()
                 ]
-                self.abilities_list.append(abilities)
+                self.abilities_list[num] = abilities
 
 
     def get_all_moves(self, response):
