@@ -71,6 +71,7 @@ class Spinarak(scrapy.Spider):
                 with open('Moves.csv', 'w', encoding='utf-8') as file:
                     for k in self.moves_list[0].keys():
                         file.write(k + ', ')
+                    file.write('\n')
                     for move in self.moves_list:
                         for k,v in move.items():
                             file.write(v + ', ')
