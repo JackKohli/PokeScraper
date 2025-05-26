@@ -121,7 +121,7 @@ class Spinarak(scrapy.Spider):
                 else:
                     heading = 'learnset'
                 data[heading] += self.get_moves_from_table(elem, data)
-        data['learnset'] = ', '.join(set(data['learnset'][:-2].split(', ')))
+        data['learnset'] = '-'.join(set(data['learnset'][:-2].split(', ')))
         self.main_data.append(data)
         return
 
@@ -191,7 +191,7 @@ class Spinarak(scrapy.Spider):
         rows = response.xpath('.//div[@id="mw-content-text"]/div[1]/table[1]/tbody/tr/td/table/tbody/tr')
         for row in rows[1:]:
             move = {}
-            move['name'] = row.xpath('./td[2]/a/text()').get()
+            move['name'] = row.xpath('./td[2]/a/text()').get().replace(',', '') #pesky 10,000,000 volt thunderbolt
             move['type'] = row.xpath('./td[3]/a/span/text()').get()
             move['category'] = row.xpath('./td[4]/a/span/text()').get()
             move['pp'] = row.xpath('./td[5]/text()').get().removesuffix('\n')
