@@ -11,6 +11,7 @@ class Spinarak(scrapy.Spider):
     stats_list = [] # list of dicts
     abilities_list = [[] for x in range(1025)] #list of abilities. has to be initialised to 1025 empty lists because of ability table ordering
     moves_list = []#list of all moves
+    pokemon_learnset = {}
     first_pass = True
     next_mon_link = ''
     def start_requests(self):     
@@ -75,6 +76,12 @@ class Spinarak(scrapy.Spider):
                             file.write(v + ', ')
                         file.write("\n")
                     file.close()
+                with open('Learnset.csv', 'w', encoding='utf-8') as file:
+                    file.write('Name, Move\n')
+                    for k,v in self.pokemon_learnset.items():
+                        for move in v:
+                            file.write(f'{k}, {move}\n')
+                    file.close()
                 return
         else:
             sleep(10)
@@ -103,7 +110,6 @@ class Spinarak(scrapy.Spider):
         data['special attack'] = ''
         data['special defense'] = ''
         data['speed'] = ''
-        data['learnset'] = ''
         #get move data delimited by h3 elements between Learnset and Side game data
         learnset = []
         learnset.append(page_content.xpath('//span[@id="Learnset"]/../following-sibling::*[1]'))
@@ -111,17 +117,14 @@ class Spinarak(scrapy.Spider):
             if learnset[-1].xpath('./following-sibling::*[1]//text()').get() == 'TCG':
                 break
             learnset.append(learnset[-1].xpath('./following-sibling::*[1]'))
+        self.pokemon_learnset[data['name_en']] = ''
         for i, elem in enumerate(learnset):
             if elem.xpath('name()').get() == 'table':
                 if learnset[i-1].xpath('name()').get() == 'h5':
-                    if learnset[i-1].xpath('.//text()').get() == data['name_en']:
-                        heading = 'learnset'
-                    else:
+                    if learnset[i-1].xpath('.//text()').get() != data['name_en']:
                         continue
-                else:
-                    heading = 'learnset'
-                data[heading] += self.get_moves_from_table(elem, data)
-        data['learnset'] = '-'.join(set(data['learnset'][:-2].split(', ')))
+                self.pokemon_learnset[data['name_en']] += self.get_moves_from_table(elem, data)
+        self.pokemon_learnset[data['name_en']] = list(set(self.pokemon_learnset[data['name_en']][:-2].split(', ')))
         self.main_data.append(data)
         return
 
